@@ -1,81 +1,85 @@
-//  Install npm dependencies first
-//  npm init
-//  npm install --save url@0.10.3
-//  npm install --save http-proxy@1.11.1
+var httpProxy = require("http-proxy"),
+    http = require("http"),
+    url = require("url"),
+    net = require('net'),
+    zt = require('zt'),
+    regex_hostport = /^([^:]+)(:([0-9]+))?$/,
+    LISTENING_PORT = process.env.NODE_PORT || 8080,
+    LISTENING_IP = process.env.NODE_IP || '0.0.0.0';
 
-var httpProxy = require("http-proxy");
-var http = require("http");
-var url = require("url");
-var net = require('net');
+zt.log("Proxy started! PORT = " + LISTENING_PORT);
 
-var server = http.createServer(function (req, res) {
-  var urlObj = url.parse(req.url);
-  var target = urlObj.protocol + "//" + urlObj.host;
+var server = http.createServer(function(req, res) {
+    var urlObj = url.parse(req.url),
+        target = urlObj.protocol + "//" + urlObj.host,
+        proxy = httpProxy.createProxyServer({});
 
-  console.log("Proxy HTTP request for:", target);
+    zt.log("Proxy HTTP request for:", target);
 
-  var proxy = httpProxy.createProxyServer({});
-  proxy.on("error", function (err, req, res) {
-    console.log("proxy error", err);
-    res.end();
-  });
+    proxy.on("error", function(err, req, res) {
+        zt.error("Proxy error" + JSON.stringify(err));
+        res.end();
+    });
 
-  proxy.web(req, res, {target: target});
-}).listen(8080);  //this is the port your clients will connect to
+    proxy.web(req, res, {
+        target: target
+    });
 
-var regex_hostport = /^([^:]+)(:([0-9]+))?$/;
+}).listen(LISTENING_PORT, LISTENING_IP);
 
-var getHostPortFromString = function (hostString, defaultPort) {
-  var host = hostString;
-  var port = defaultPort;
+var getHostPortFromString = function(hostString, defaultPort) {
+    var host = hostString,
+        port = defaultPort,
+        result = regex_hostport.exec(hostString);
 
-  var result = regex_hostport.exec(hostString);
-  if (result != null) {
-    host = result[1];
-    if (result[2] != null) {
-      port = result[3];
+    if (result != null) {
+        host = result[1];
+        if (result[2] != null) {
+            port = result[3];
+        }
     }
-  }
 
-  return ( [host, port] );
+    return ([host, port]);
 };
 
-server.addListener('connect', function (req, socket, bodyhead) {
-  var hostPort = getHostPortFromString(req.url, 443);
-  var hostDomain = hostPort[0];
-  var port = parseInt(hostPort[1]);
-  console.log("Proxying HTTPS request for:", hostDomain, port);
+server.addListener('connect', function(req, socket, bodyhead) {
+    var hostPort = getHostPortFromString(req.url, 443),
+        hostDomain = hostPort[0],
+        port = parseInt(hostPort[1]),
+        proxySocket = new net.Socket();
 
-  var proxySocket = new net.Socket();
-  proxySocket.connect(port, hostDomain, function () {
-      proxySocket.write(bodyhead);
-      socket.write("HTTP/" + req.httpVersion + " 200 Connection established\r\n\r\n");
-    }
-  );
+    zt.log("Proxying HTTPS request for:" + JSON.stringify([hostDomain, port]));
 
-  proxySocket.on('data', function (chunk) {
-    socket.write(chunk);
-  });
+    proxySocket.connect(port, hostDomain, function() {
+        proxySocket.write(bodyhead);
+        socket.write("HTTP/" + req.httpVersion + " 200 Connection established\r\n\r\n");
+    });
 
-  proxySocket.on('end', function () {
-    socket.end();
-  });
+    proxySocket.on('data', function(chunk) {
+        socket.write(chunk);
+    });
 
-  proxySocket.on('error', function () {
-    socket.write("HTTP/" + req.httpVersion + " 500 Connection error\r\n\r\n");
-    socket.end();
-  });
+    proxySocket.on('end', function() {
+        zt.warn("Connection ended");
+        socket.end();
+    });
 
-  socket.on('data', function (chunk) {
-    proxySocket.write(chunk);
-  });
+    proxySocket.on('error', function() {
+        zt.error("Error occured");
+        socket.write("HTTP/" + req.httpVersion + " 500 Connection error\r\n\r\n");
+        socket.end();
+    });
 
-  socket.on('end', function () {
-    proxySocket.end();
-  });
+    socket.on('data', function(chunk) {
+        proxySocket.write(chunk);
+    });
 
-  socket.on('error', function () {
-    proxySocket.end();
-  });
+    socket.on('end', function() {
+        proxySocket.end();
+    });
+
+    socket.on('error', function() {
+        proxySocket.end();
+    });
 
 });
