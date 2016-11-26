@@ -2,22 +2,21 @@ var httpProxy = require("http-proxy"),
     http = require("http"),
     url = require("url"),
     net = require('net'),
-    zt = require('zt'),
     regex_hostport = /^([^:]+)(:([0-9]+))?$/,
     LISTENING_PORT = process.env.NODE_PORT || 8080,
     LISTENING_IP = process.env.NODE_IP || '0.0.0.0';
 
-zt.log("Proxy started! PORT = " + LISTENING_PORT);
+console.log("Proxy started! PORT = " + LISTENING_PORT);
 
 var server = http.createServer(function(req, res) {
     var urlObj = url.parse(req.url),
         target = urlObj.protocol + "//" + urlObj.host,
         proxy = httpProxy.createProxyServer({});
 
-    zt.log("Proxy HTTP request for:", target);
+    console.log("Proxy HTTP request for:", target);
 
     proxy.on("error", function(err, req, res) {
-        zt.error("Proxy error" + JSON.stringify(err));
+        console.error("Proxy error" + JSON.stringify(err));
         res.end();
     });
 
@@ -48,7 +47,7 @@ server.addListener('connect', function(req, socket, bodyhead) {
         port = parseInt(hostPort[1]),
         proxySocket = new net.Socket();
 
-    zt.log("Proxying HTTPS request for:" + JSON.stringify([hostDomain, port]));
+    console.log("Proxying HTTPS request for:" + JSON.stringify([hostDomain, port]));
 
     proxySocket.connect(port, hostDomain, function() {
         proxySocket.write(bodyhead);
@@ -60,12 +59,12 @@ server.addListener('connect', function(req, socket, bodyhead) {
     });
 
     proxySocket.on('end', function() {
-        zt.warn("Connection ended");
+        console.warn("Connection ended");
         socket.end();
     });
 
     proxySocket.on('error', function() {
-        zt.error("Error occured");
+        console.error("Error occured");
         socket.write("HTTP/" + req.httpVersion + " 500 Connection error\r\n\r\n");
         socket.end();
     });
