@@ -1,0 +1,16 @@
+{
+  "name": "proxy-server",
+  "version": "1.0.0",
+  "description": "Node proxy server",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "postinstall": "echo Installed on PORT=${NODE_PORT}"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "http-proxy": "1.11.1",
+    "url": "0.10.3"
+  }
+}
